@@ -1,0 +1,58 @@
+import gradio as gr
+import pandas as pd
+import plotly.graph_objs as go
+import requests
+
+# Replace 'YOUR_API_KEY' with your actual Alpha Vantage API key
+api_key = 'Your API-KEY'
+base_url = 'https://www.alphavantage.co/query'
+
+
+def update_candlestick_chart(symbol):
+    try:
+        params = {
+            'function': 'TIME_SERIES_DAILY',
+            'symbol': symbol,
+            'outputsize': 'compact',
+            'apikey': api_key
+        }
+        response = requests.get(base_url, params=params)
+        data = response.json()
+
+        if 'Time Series (Daily)' not in data:
+            raise ValueError('Data retrieval failed. Check your symbol and API key.')
+
+        df = pd.DataFrame.from_dict(data['Time Series (Daily)'], orient='index')
+        df.index = pd.to_datetime(df.index)
+        df = df.astype(float)
+        df.sort_index(ascending=True, inplace=True)
+
+        trace = go.Candlestick(
+            x=df.index,
+            open=df['1. open'],
+            high=df['2. high'],
+            low=df['3. low'],
+            close=df['4. close'],
+            name=symbol
+        )
+
+        layout = go.Layout(title=f"Candlestick Chart for {symbol}",
+                           xaxis=dict(title='Date'),
+                           yaxis=dict(title='Price'))
+
+        fig = go.Figure(data=[trace], layout=layout)
+        return fig
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error: {e}")
+        fig = go.Figure(go.Scatter(x=[], y=[]))
+        fig.update_layout(title=f"Error: {e}")
+        return fig
+
+
+iface = gr.Interface(fn=update_candlestick_chart,
+                     inputs=gr.inputs.Textbox(),
+                     outputs="plot",
+                     live=True)
+
+iface.launch(share=True)
